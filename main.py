@@ -1,22 +1,21 @@
 from mcp.server.fastmcp import FastMCP
 import os
 
-# Create an MCP server
 mcp = FastMCP("spydr-mcp")
 
 @mcp.tool()
-def add_chat_to_memory(message: str) -> str:
+def add_chat_to_memory(messages: list[str]) -> str:
     pass
 
 @mcp.tool() # websites and notes for now
 def create_new_source() -> str:
     pass
 
-@mcp.resource("pinecone") # over public webs
+@mcp.resource("pinecone://{query}/{k}") # over public webs
 def get_query_context(query: str, k: int) -> str:
     pass
 
-@mcp.resource("neo4j_graph") # different traversals
+@mcp.resource("neo4j://{cypher}") # different traversals
 def get_graph_context(cypher: str) -> str:
     pass
 
