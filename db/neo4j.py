@@ -3,7 +3,7 @@ from core.config import settings
 from neo4j import Record, Session
 from typing import Dict, Any, List, Tuple
 
-class Neo4jDBClient:
+class Neo4jClient:
     def __init__(self) -> None:
         self.driver = GraphDatabase.driver(
             settings.neo4j_uri,
@@ -29,4 +29,4 @@ class Neo4jDBClient:
             result = session.run(query, parameters)
             return [record.data() for record in result]
         
-client = Neo4jDBClient()
+client = Neo4jClient()
