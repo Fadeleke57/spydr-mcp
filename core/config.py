@@ -4,10 +4,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
-env_path = "/Users/fadel/Desktop/dev/spydr-mcp/.env" #update in prod
+env_path = "/Users/fadel/Desktop/dev/spydr-mcp/.env"  # update in prod
 load_dotenv(dotenv_path=env_path)
 
 print(f"LOADING ENVIRONMENT: {os.getenv('FASTAPI_ENV', 'NOT SET')}", file=sys.stderr)
+
 
 class Settings(BaseSettings):
     mongo_initdb_database: str
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = env_path
         ignore_extra = True
+
 
 try:
     settings = Settings()
