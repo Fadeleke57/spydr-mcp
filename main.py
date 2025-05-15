@@ -14,6 +14,7 @@ import sys
 import traceback
 from dataclasses import dataclass
 
+# uv run mcp install main.py --with pymongo --with neo4j --with pinecone --with pydantic-settings --with pydantic --with python-dotenv
 
 @dataclass
 class AppContext:
@@ -141,7 +142,6 @@ def get_query_context(query: str, k: int) -> str:
         str: A string containing the k most semantically relevant sources.
     """
     content = pineconeClient.run_semantic_source_search(
-        webId=WEB_ID_TO_TEST,
         query=query,
         limit=k,
         filter={},

@@ -30,6 +30,7 @@ class PineconeClient:
             inputs=[query],
             parameters={"input_type": "query"},
         )
+        
         return embedding[0].values
 
     def run_semantic_web_search(
@@ -56,14 +57,16 @@ class PineconeClient:
             filter=filter,
         )
         results = []
+
         for match in pinecone_response["matches"]:
             result = match["metadata"]
             result["id"] = match["id"]
             results.append(result)
+
         return results
 
     def run_semantic_source_search(
-        self, webId: str, query: str, filter: Dict[str, Any] = {}, limit: int = 10
+        self, query: str, filter: Dict[str, Any] = {}, limit: int = 10
     ):
         """
         Runs a semantic search over the Pinecone index for a given web ID.
@@ -79,10 +82,10 @@ class PineconeClient:
         - List[Dict[str, Any]]: A list of dictionaries, each representing a result. The dictionary will
             contain the metadata of the result, as well as an "id" key containing the ID of the result.
         """
-        filter["webId"] = webId
-
         query_embedding = self.get_query_embedding(query)
+
         print(f"Query embedding: {query_embedding}", file=sys.stderr)
+
         pinecone_response = self.index.query(
             vector=query_embedding,
             top_k=limit,
@@ -90,12 +93,15 @@ class PineconeClient:
             namespace="sources",
             filter=filter,
         )
+
         results = []
         print(f"Pinecone response: {pinecone_response}", file=sys.stderr)
+
         for match in pinecone_response["matches"]:
             result = match["metadata"]
             result["id"] = match["id"]
             results.append(result)
+        
         return results
 
 
