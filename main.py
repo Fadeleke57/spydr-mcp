@@ -1,7 +1,13 @@
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.fastmcp.server import Settings
+from mcp.server.auth.settings import (
+    AuthSettings,
+    RevocationOptions,
+    ClientRegistrationOptions,
+)
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
-from models.source import CreateSource, create_source
+from models.index import CreateSource, create_source, query_client
 from db.index import (
     mongoDBClient,
     pineconeClient,
@@ -10,15 +16,33 @@ from db.index import (
     PineconeClient,
     Neo4jClient,
 )
+from core.config import settings
 import sys
 import traceback
 from dataclasses import dataclass
+from authlib.oauth2.rfc6749 import ResourceProtector
+from auth.index import MCPClientAuthentication, MCPAuthorizationServer, MCPTokenValidator
+from fastapi import Request, Depends
 
 # uv run mcp install main.py --with pymongo --with neo4j --with pinecone --with pydantic-settings --with pydantic --with python-dotenv
+client_auth = MCPClientAuthentication(query_client=query_client)
+oauth_server = MCPAuthorizationServer()
+
+require_oauth = ResourceProtector()
+require_oauth.register_token_validator(
+    MCPTokenValidator(
+        realm="spydr-mcp",
+        description="Protected resource requiring valid OAuth 2.1 token",
+        scope="read",
+        # Additional parameters per RFC6750[1]
+        token_type="Bearer",
+        token_type_hint="access_token"
+    )
+)
 
 @dataclass
 class AppContext:
-    mongdb: MongoDBClient
+    mongodb: MongoDBClient
     pinecone: PineconeClient
     neo4j: Neo4jClient
 
@@ -48,7 +72,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         print("Successfully connected to databases!", file=sys.stderr)
         print("Starting server..", file=sys.stderr)
         yield AppContext(
-            mongdb=mongoDBClient, pinecone=pineconeClient, neo4j=neo4jClient
+            mongodb=mongoDBClient, pinecone=pineconeClient, neo4j=neo4jClient
         )
 
     except Exception as e:
@@ -65,9 +89,20 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         print("Successfully shut down server!", file=sys.stderr)
 
 
-mcp = FastMCP(
-    name="spydr-mcp",
-    lifespan=app_lifespan,
+server_settings = Settings(
+    debug=settings.fastapi_env == "dev",
+    auth=AuthSettings(
+        issuer_url="https://spydr.dev",
+        revocation_options=RevocationOptions(
+            enabled=True,
+        ),
+        client_registration_options=ClientRegistrationOptions(
+            enabled=True,
+            valid_scopes=["read", "write"],  # define scopes
+            default_scopes=["read"],  # default scope
+        ),
+        required_scopes=["read"],  # required scope
+    ),
     dependencies=[
         "fastmcp",
         "mcp",
@@ -77,27 +112,38 @@ mcp = FastMCP(
         "pydantic-settings",
         "pymongo",
         "python-dotenv",
+        "authlib",
+        "fastapi",
     ],
+    lifespan=app_lifespan,
+)
+
+mcp = FastMCP(
+    name="spydr-mcp",
+    auth_server_provider=oauth_server,
+    settings=server_settings,
 )
 
 USER_ID_TO_TEST = "8f05ff19-ab84-47ba-bd02-bed09c405981"
 WEB_ID_TO_TEST = "861539e5-d6aa-4a58-97d9-c19ee87475ec"
 
+@mcp.app.post("/oauth/token")
+async def issue_token(request: Request):
+    return await oauth_server.create_token_response(request)
 
-@mcp.tool()
-def add_chat_to_memory(messages: list[str], summary: str) -> str:
-    """
-    Given a list of strings that represent a chat log, and a string for the summary,
-    this tool creates a new source in the user's memory database with the given content
-    and summary. The source is named with the given summary and is of type 'note'.
+@mcp.app.post("/oauth/introspect")
+async def introspect_token(request: Request):
+    return await oauth_server.create_introspect_response(request)
 
-    Args:
-        messages (list[str]): List of strings representing the chat log.
-        summary (str): String to be used as the summary for the source.
 
-    Returns:
-        str: A string indicating whether the source was added successfully or not.
-    """
+@mcp.tool(dependencies=[Depends(require_oauth)])
+def add_chat_to_memory(
+    messages: list[str],
+    summary: str,
+    token: dict = Depends(require_oauth)
+) -> str:
+    # Token is now validated via Authlib's RFC6750-compliant flow
+    user_id = token.get('sub')
     try:
 
         sourceToCreate = CreateSource(
@@ -126,6 +172,7 @@ def create_new_source() -> str:
 def get_config() -> str:
     """Static configuration data"""
     return "App configuration here"
+
 
 @mcp.tool()
 def get_query_context(query: str, k: int) -> str:

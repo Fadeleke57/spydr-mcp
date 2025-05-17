@@ -30,7 +30,7 @@ class PineconeClient:
             inputs=[query],
             parameters={"input_type": "query"},
         )
-        
+
         return embedding[0].values
 
     def run_semantic_web_search(
@@ -101,7 +101,7 @@ class PineconeClient:
             result = match["metadata"]
             result["id"] = match["id"]
             results.append(result)
-        
+
         return results
 
 
